@@ -5,41 +5,40 @@ from time import time
 
 class Game:
     def __init__(self,abp=False):
+        '''
+        Initialize the game
+        '''
         self.board = None
-        self.abp = abp
+        self.abp = abp # use ab prune?
 
     def play(self,m,n,k):
+        '''
+        simulate a mnk game
+        '''
         self.initialize_game(m,n,k)
-        self.drawboard()
+        self.drawboard() # show the board
         rec = time()
         if self.abp: self.max(-1000,1000)
         else: self.max()
         print("Time:",time()-rec)
         turn = 0
+        # simulate the game until terminal
         while not self.is_terminal(self.chess_max if turn & 1 else self.chess_min):
             turn += 1
-            if turn & 1:
-                hint, sc = self.play_max()
+            if turn & 1: # MAX's turn
+                hint, sc = self.play_max() # get hint from strategy set
                 if hint is None: break
                 mx,my = hint
-                self.drawboard((mx,my))
+                self.drawboard((mx,my)) # show the board with the hint
                 if True:
                     self.chess_max[mx,my] = 1
                     self.last.append((mx,my))
                     print("Max moved at {0},{1}".format(mx,my))
                     print("Score:",sc)
-                    self.draw()
-                # success = False
-                # while not success:
-                #     success = True
-                #     try:
-                #         mx, my = map(int,input().split(','))
-                #         self.chess_max[mx,my] = 1
-                #         self.last.append((mx,my))
-                #     except:
-                #         success = False
-                self.drawboard()
-            else:
+                    self.draw() # show board after the move (text)
+                # self.is_valid() # manual input
+                self.drawboard() # show board after the move (imshow)
+            else: # MIN's turn
                 hint, sc = self.play_min()
                 if hint is None: break
                 mx,my = hint
@@ -52,36 +51,55 @@ class Game:
         elif len(self.last) == m*n: print("Draw")
         else: print("Lose")
 
+    def is_valid(self):
+        '''
+        valid input getter
+        '''
+        success = False
+        m,n = self.board.shape
+        while not success:
+            success = True
+            try:
+                mx, my = map(int,input().split(','))
+                if not 0<=mx<m or not 0<=my<n or self.chess_max[mx,my] != 0:
+                    raise NotImplementedError
+                self.chess_max[mx,my] = 1
+                self.last.append((mx,my))
+            except:
+                success = False
+        return mx,my
+
     def play_max(self):
+        '''
+        MAX's strategy producer
+        '''
         m,n = self.board.shape
         best = None
         maxi = -9999
-        for i in range(m):
-            for j in range(n):
-                if self.chess_max[i,j] == self.chess_min[i,j]:
-                    self.chess_max[i,j] = 1
-                    sign = self.sign()
-                    score = self.strategy[sign]
-                    if score > maxi:
-                        best = (i,j)
-                        maxi = score
-                    self.chess_max[i,j] = 0
+        for i,j in product(range(m),range(n)):
+            if self.chess_max[i,j] == self.chess_min[i,j]:
+                self.chess_max[i,j] = 1
+                sign = self.sign()
+                score = self.strategy[sign]
+                if score > maxi:
+                    best = (i,j)
+                    maxi = score
+                self.chess_max[i,j] = 0
         return best, maxi
 
     def play_min(self):
         m,n = self.board.shape
         best = None
         mini = 9999
-        for i in range(m):
-            for j in range(n):
-                if self.chess_max[i,j] == self.chess_min[i,j]:
-                    self.chess_min[i,j] = 1
-                    sign = self.sign()
-                    score = self.strategy[sign]
-                    if score < mini:
-                        best = (i,j)
-                        mini = score
-                    self.chess_min[i,j] = 0
+        for i,j in product(range(m),range(n)):
+            if self.chess_max[i,j] == self.chess_min[i,j]:
+                self.chess_min[i,j] = 1
+                sign = self.sign()
+                score = self.strategy[sign]
+                if score < mini:
+                    best = (i,j)
+                    mini = score
+                self.chess_min[i,j] = 0
         return best, mini
 
     def initialize_game(self,m,n,k):
@@ -99,17 +117,17 @@ class Game:
         plt.imshow(self.board.T)
         plt.scatter([m[0] for i,m in enumerate(self.last) if i&1==0],
                     [m[1] for i,m in enumerate(self.last) if i&1==0],
-                    300,marker='X',c='black')
+                    300,marker='X',c='black') # marker for MAX
         plt.scatter([m[0] for i,m in enumerate(self.last) if i&1],
                     [m[1] for i,m in enumerate(self.last) if i&1],
-                    300,marker='o',c='black')
-        if self.last: plt.scatter(*self.last[-1],300,marker='X' if len(self.last)&1==1 else 'o',c='red')
-        if hint is not None: plt.scatter(*hint,300,marker='X',c='blue')
+                    300,marker='o',c='black') # marker for MIN
+        if self.last: plt.scatter(*self.last[-1],300,marker='X' if len(self.last)&1==1 else 'o',c='red') # last move
+        if hint is not None: plt.scatter(*hint,300,marker='X',c='blue') # hint move
         plt.show()
 
     def draw(self):
         print((self.chess_max-self.chess_min).T)
-        print('('+','.join(map(str,(self.chess_max-self.chess_min).reshape(-1)))+')')
+        # print('('+','.join(map(str,(self.chess_max-self.chess_min).reshape(-1)))+')')
 
     def min(self,alpha,beta):
         self.at = self.chess_min
@@ -167,21 +185,21 @@ class Game:
 
     def is_terminal(self,chess):
         if not self.last: return False
-        x,y = self.last[-1]
+        x,y = self.last[-1] # checker centered at last move
         ans = 0
         h,v,d,u = 0,0,0,0
         m,n = self.board.shape
         for i in range(-self.k+1,self.k):
-            if 0<=x+i<m:
+            if 0<=x+i<m: # horizontal
                 h1 = h+chess[x+i,y]
                 h = (h1-h)*h1
-            if 0<=y+i<n:
+            if 0<=y+i<n: # vertical
                 v1 = v+chess[x,y+i]
                 v = (v1-v)*v1
-            if 0<=x+i<m and 0<=y+i<n:
+            if 0<=x+i<m and 0<=y+i<n: # diagonal
                 d1 = d+chess[x+i,y+i]
                 d = (d1-d)*d1
-            if 0<=x-i<m and 0<=y+i<n:
+            if 0<=x-i<m and 0<=y+i<n: # diagonal
                 u1 = u+chess[x-i,y+i]
                 u = (u1-u)*u1
             ans = max(ans,h,v,d,u)
