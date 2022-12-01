@@ -11,9 +11,9 @@ class Game:
         self.board = None
         self.abp = abp # use ab prune?
 
-    def play(self,m,n,k):
+    def play(self,m,n,k,mode):
         '''
-        simulate a mnk game
+        simulate a mnk game, set mode=0 for timing(not playing),=1 for automatic play,=2 for manual play
         '''
         self.initialize_game(m,n,k)
         self.drawboard() # show the board
@@ -21,6 +21,8 @@ class Game:
         if self.abp: self.max(-1000,1000)
         else: self.max()
         print("Time:",time()-rec)
+        print("States:",len(self.strategy))
+        if mode == 0: return
         turn = 0
         # simulate the game until terminal
         while not self.is_terminal(self.chess_max if turn & 1 else self.chess_min):
@@ -30,13 +32,13 @@ class Game:
                 if hint is None: break
                 mx,my = hint
                 self.drawboard((mx,my)) # show the board with the hint
-                if True:
+                if mode == 1: # play automatically, play manually by set this True to False
                     self.chess_max[mx,my] = 1
                     self.last.append((mx,my))
                     print("Max moved at {0},{1}".format(mx,my))
                     print("Score:",sc)
                     self.draw() # show board after the move (text)
-                # self.is_valid() # manual input
+                else: self.is_valid() # manual input
                 self.drawboard() # show board after the move (imshow)
             else: # MIN's turn
                 hint, sc = self.play_min()
@@ -50,14 +52,15 @@ class Game:
         if turn & 1: print("Win")
         elif len(self.last) == m*n: print("Draw")
         else: print("Lose")
+        
 
     def is_valid(self):
         '''
-        valid input getter
+        valid input getter, input format: x,y
         '''
         success = False
         m,n = self.board.shape
-        while not success:
+        while not success: # do until a valid input is gotten
             success = True
             try:
                 mx, my = map(int,input().split(','))
@@ -107,13 +110,14 @@ class Game:
         self.k = k
         for i in range(m):
             for j in range(n):
-                self.board[i,j] = (i+j)&1
-        self.chess_max = np.zeros_like(self.board,dtype=np.int8)
-        self.chess_min = np.zeros_like(self.board,dtype=np.int8)
-        self.last = []
-        self.strategy = {}
+                self.board[i,j] = (i+j)&1 # make the board 'chess-board like'
+        self.chess_max = np.zeros_like(self.board,dtype=np.int8) # initialize MAX's play
+        self.chess_min = np.zeros_like(self.board,dtype=np.int8) # initialize MIN's play
+        self.last = [] # last play
+        self.strategy = {} # visited state
 
     def drawboard(self,hint=None):
+        '''print the board use imshow'''
         plt.imshow(self.board.T)
         plt.scatter([m[0] for i,m in enumerate(self.last) if i&1==0],
                     [m[1] for i,m in enumerate(self.last) if i&1==0],
@@ -126,32 +130,32 @@ class Game:
         plt.show()
 
     def draw(self):
-        print((self.chess_max-self.chess_min).T)
+        print((self.chess_max-self.chess_min).T) # print the board as text
         # print('('+','.join(map(str,(self.chess_max-self.chess_min).reshape(-1)))+')')
 
     def min(self,alpha,beta):
         self.at = self.chess_min
         sign = self.sign()
-        if sign in self.strategy: return self.strategy[sign]
-        if self.is_terminal(self.chess_max):
-            ans = 999
+        if sign in self.strategy: return self.strategy[sign] # If situation seen, use it. 
+        if self.is_terminal(self.chess_max): # MIN check the board, if MAX had won, MIN report a lose
+            ans = 999 # MIN says: I have lost
             self.strategy[sign] = ans
             return ans
         m,n = self.board.shape
         ans = None
         for i,j in product(range(m),range(n)):
-            if self.chess_max[i,j] == self.chess_min[i,j]:
-                self.chess_min[i,j] = 1
+            if self.chess_max[i,j] == self.chess_min[i,j]: # check if can play at i,j
+                self.chess_min[i,j] = 1 # play
                 self.last.append((i,j))
                 comp = self.max(alpha,beta)
-                # comp = min(comp-1,comp+1,key=abs)
+                comp = min(comp-1,comp+1,key=abs)
                 ans = min(ans, comp) if ans is not None else comp
-                self.chess_min[i,j] = 0
+                self.chess_min[i,j] = 0 # rollback
                 self.last.pop()
                 if alpha is not None and ans <= alpha: break
                 if beta is not None: beta = min(beta,ans)
         ans1 = ans if ans is not None else 0
-        self.strategy[sign] = ans1
+        self.strategy[sign] = ans1 # save this as seen situation
         return ans1
 
     def max(self,alpha=None,beta=None):
@@ -169,7 +173,7 @@ class Game:
                 self.chess_max[i,j] = 1
                 self.last.append((i,j))
                 comp = self.min(alpha,beta)
-                # comp = min(comp-1,comp+1,key=abs)
+                comp = min(comp-1,comp+1,key=abs)
                 ans = max(ans, comp) if ans is not None else comp
                 self.chess_max[i,j] = 0
                 self.last.pop()
@@ -180,6 +184,7 @@ class Game:
         return ans1
 
     def sign(self):
+        '''from a game situation to a dictionary key'''
         situ = self.chess_max-self.chess_min
         return tuple(*situ.reshape(1,-1))
 
@@ -215,4 +220,4 @@ if __name__ == '__main__':
     # g.chess_min = np.array([[0,0,1],[1,1,0],[0,0,0]],dtype=np.int8)
     # g.last = [(1,2)]
     # print(g.checkTerminal(g.chess_max))
-    g.play(4,4,4)
+    g.play(4,4,4,no=True)
